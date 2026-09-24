@@ -1,20 +1,19 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.brandonpollack23.beautiful-workspace-bar",
+  "id": "brandonpollack23.beautiful-workspace-bar",
   "name": "Beautiful Workspace Bar",
   "version": "0.2.0",
   "author": "Brandon Pollack",
   "license": "MIT",
   "description": "Every Hyprland workspace by name, with a sliding accent pill, urgent highlights and live window previews.",
   "homepage": "https://github.com/brandonpollack23/omarchy-beautiful-workspace-bar",
-  "kinds": [
-    "bar-widget"
-  ],
+  "kinds": ["bar-widget"],
   "entryPoints": {
     "barWidget": "Workspaces.qml"
   },
   "keywords": [
     "workspaces",
+    "bar",
     "hyprland",
     "names",
     "preview",
@@ -28,10 +27,7 @@
     "category": "Compositor",
     "allowMultiple": false,
     "defaultSection": "left",
-    "aliases": [
-      "workspaces",
-      "workspace bar"
-    ],
+    "aliases": ["workspaces", "workspace bar"],
     "defaults": {
       "showSpecial": true,
       "showNumbers": false,
@@ -74,10 +70,7 @@
         "label": "Preview style",
         "description": "capture: a screenshot of each window; icons: app icons only, never screen content.",
         "defaultValue": "capture",
-        "options": [
-          "capture",
-          "icons"
-        ]
+        "options": ["capture", "icons"]
       },
       {
         "key": "previewSize",

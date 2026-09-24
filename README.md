@@ -57,15 +57,15 @@ omarchy plugin disable omarchy.workspaces
 somewhere else, for example first:
 
 ```sh
-omarchy bar move io.github.brandonpollack23.beautiful-workspace-bar --section left --index 0
+omarchy bar move brandonpollack23.beautiful-workspace-bar --section left --index 0
 ```
 
-Update it with `omarchy plugin update io.github.brandonpollack23.beautiful-workspace-bar`.
+Update it with `omarchy plugin update brandonpollack23.beautiful-workspace-bar`.
 
 ## Uninstall
 
 ```sh
-omarchy plugin remove io.github.brandonpollack23.beautiful-workspace-bar
+omarchy plugin remove brandonpollack23.beautiful-workspace-bar
 omarchy plugin enable omarchy.workspaces
 ```
 
@@ -86,7 +86,7 @@ omarchy plugin enable omarchy.workspaces
 Set them in Omarchy's bar settings, or from a shell:
 
 ```sh
-id=io.github.brandonpollack23.beautiful-workspace-bar
+id=brandonpollack23.beautiful-workspace-bar
 omarchy bar set $id previewMode icons
 omarchy bar set $id previewSize 300 --json
 omarchy bar set $id addButton false --json
@@ -126,7 +126,7 @@ If your config keeps something per workspace id, such as saved layouts,
 point it at your own function so that moves with the workspace:
 
 ```sh
-omarchy bar set io.github.brandonpollack23.beautiful-workspace-bar renumberLua \
+omarchy bar set brandonpollack23.beautiful-workspace-bar renumberLua \
   "require('hypr.workspaces').renumber({from}, {to})"
 ```
 
@@ -138,7 +138,7 @@ focused workspace:
 
 ```lua
 o.bind("SUPER + SHIFT + R", "Name workspace",
-  "omarchy-shell io.github.brandonpollack23.beautiful-workspace-bar rename focused")
+  "omarchy-shell brandonpollack23.beautiful-workspace-bar rename focused")
 ```
 
 Or from a shell:
@@ -217,7 +217,7 @@ bar goes through the same function.
 The widget answers `omarchy-shell` IPC:
 
 ```sh
-b=io.github.brandonpollack23.beautiful-workspace-bar
+b=brandonpollack23.beautiful-workspace-bar
 omarchy-shell $b preview 2     # open workspace 2's preview
 omarchy-shell $b unpreview
 omarchy-shell $b next          # or prev

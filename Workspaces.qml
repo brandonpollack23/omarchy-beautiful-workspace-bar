@@ -23,7 +23,7 @@ import "Logic.js" as Logic
 // Each of these can be turned off in the widget's settings (manifest.json).
 BarWidget {
   id: root
-  moduleName: "io.github.brandonpollack23.beautiful-workspace-bar"
+  moduleName: "brandonpollack23.beautiful-workspace-bar"
 
   readonly property bool showSpecial: root.setting("showSpecial", true) !== false
   readonly property bool showNumbers: root.setting("showNumbers", false) === true
@@ -578,9 +578,9 @@ BarWidget {
   }
 
   // Scriptable, and how the README's screenshots are taken:
-  //   omarchy-shell io.github.brandonpollack23.beautiful-workspace-bar preview 2
+  //   omarchy-shell brandonpollack23.beautiful-workspace-bar preview 2
   IpcHandler {
-    target: "io.github.brandonpollack23.beautiful-workspace-bar"
+    target: "brandonpollack23.beautiful-workspace-bar"
 
     function preview(id: string): void {
       var n = parseInt(id, 10) || 0

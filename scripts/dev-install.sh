@@ -4,7 +4,7 @@
 # changing QML, restart the shell as well (--restart).
 set -euo pipefail
 
-id=io.github.brandonpollack23.beautiful-workspace-bar
+id=brandonpollack23.beautiful-workspace-bar
 src=$(cd "$(dirname "$0")/.." && pwd)
 dest=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/$id
 
