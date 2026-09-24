@@ -2,28 +2,56 @@
   "schemaVersion": 1,
   "id": "io.github.brandonpollack23.beautiful-workspace-bar",
   "name": "Beautiful Workspace Bar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Brandon Pollack",
   "license": "MIT",
   "description": "Every Hyprland workspace by name, with a sliding accent pill, urgent highlights and live window previews.",
   "homepage": "https://github.com/brandonpollack23/omarchy-beautiful-workspace-bar",
-  "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "Workspaces.qml" },
-  "keywords": ["workspaces", "hyprland", "names", "preview", "pill"],
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Workspaces.qml"
+  },
+  "keywords": [
+    "workspaces",
+    "hyprland",
+    "names",
+    "preview",
+    "pill",
+    "reorder",
+    "rename"
+  ],
   "barWidget": {
     "displayName": "Beautiful Workspace Bar",
-    "description": "Named workspaces with a sliding pill and hover previews.",
+    "description": "Named workspaces with a sliding pill, hover previews, drag to reorder, right-click to rename and a + for a new one.",
     "category": "Compositor",
     "allowMultiple": false,
     "defaultSection": "left",
-    "aliases": ["workspaces", "workspace bar"],
-    "defaults": { "showSpecial": true, "showNumbers": false, "previewMode": "capture" },
+    "aliases": [
+      "workspaces",
+      "workspace bar"
+    ],
+    "defaults": {
+      "showSpecial": true,
+      "showNumbers": false,
+      "preview": true,
+      "previewMode": "capture",
+      "previewSize": 220,
+      "addButton": true,
+      "rename": true,
+      "reorder": true,
+      "renumberLua": "",
+      "middleClickMove": true,
+      "scrollSwitch": true,
+      "animate": true
+    },
     "schema": [
       {
         "key": "showSpecial",
         "type": "boolean",
-        "label": "Special workspaces",
-        "description": "Show special workspaces (the scratchpad and the like) after a separator; clicking one toggles it.",
+        "label": "Hidden workspaces",
+        "description": "Show special (hidden) workspaces, like the scratchpad, after a separator. Clicking one toggles it.",
         "defaultValue": true
       },
       {
@@ -34,12 +62,80 @@
         "defaultValue": false
       },
       {
+        "key": "preview",
+        "type": "boolean",
+        "label": "Hover preview",
+        "description": "Show a workspace's windows when hovering over it.",
+        "defaultValue": true
+      },
+      {
         "key": "previewMode",
         "type": "string",
-        "label": "Hover preview",
-        "description": "capture: screenshots of the windows; icons: app icons only, no screen content; off.",
+        "label": "Preview style",
+        "description": "capture: a screenshot of each window; icons: app icons only, never screen content.",
         "defaultValue": "capture",
-        "options": ["capture", "icons", "off"]
+        "options": [
+          "capture",
+          "icons"
+        ]
+      },
+      {
+        "key": "previewSize",
+        "type": "integer",
+        "label": "Preview size",
+        "description": "Height of the preview's screen, in pixels; its width follows the monitor's shape.",
+        "defaultValue": 220,
+        "min": 100,
+        "max": 800
+      },
+      {
+        "key": "addButton",
+        "type": "boolean",
+        "label": "New workspace button",
+        "description": "A + after the workspaces that opens a new one at the end.",
+        "defaultValue": true
+      },
+      {
+        "key": "rename",
+        "type": "boolean",
+        "label": "Right-click to rename",
+        "description": "Right-click a workspace to name it (Hyprland's own workspace name). An empty name puts the number back.",
+        "defaultValue": true
+      },
+      {
+        "key": "reorder",
+        "type": "boolean",
+        "label": "Drag to reorder",
+        "description": "Drag a workspace along the bar to move it. Workspaces are ordered by id, so this renumbers them.",
+        "defaultValue": true
+      },
+      {
+        "key": "renumberLua",
+        "type": "string",
+        "label": "Renumber with",
+        "description": "Lua run by `hyprctl eval` to give workspace {from} the id {to} when reordering. Empty uses Hyprland's own: hl.dispatch(hl.dsp.workspace.change_id({ workspace = \"{from}\", id = {to} })). Point it at your config's function if you keep things per workspace id.",
+        "defaultValue": ""
+      },
+      {
+        "key": "middleClickMove",
+        "type": "boolean",
+        "label": "Middle-click sends window",
+        "description": "Middle-click a workspace to send the focused window there, staying where you are.",
+        "defaultValue": true
+      },
+      {
+        "key": "scrollSwitch",
+        "type": "boolean",
+        "label": "Scroll to switch",
+        "description": "Scroll over the widget to go to the previous or next workspace.",
+        "defaultValue": true
+      },
+      {
+        "key": "animate",
+        "type": "boolean",
+        "label": "Animations",
+        "description": "Slide the pill between workspaces and pulse urgent ones.",
+        "defaultValue": true
       }
     ]
   }

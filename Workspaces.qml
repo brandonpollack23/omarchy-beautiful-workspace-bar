@@ -13,22 +13,41 @@ import "Logic.js" as Logic
 // script or a keybinding shows up here at once.
 //
 //   left-click     go to the workspace (a special one is toggled)
+//   right-click    rename it
 //   middle-click   send the focused window there, without following it
+//   drag           move it along the bar (renumbers workspaces)
 //   scroll         previous / next workspace
 //   hover          preview of the windows on it
+//   +              a new workspace at the end
+//
+// Each of these can be turned off in the widget's settings (manifest.json).
 BarWidget {
   id: root
   moduleName: "io.github.brandonpollack23.beautiful-workspace-bar"
 
   readonly property bool showSpecial: root.setting("showSpecial", true) !== false
   readonly property bool showNumbers: root.setting("showNumbers", false) === true
+  // `previewMode: "off"` is still honoured, from before `preview` existed.
+  readonly property bool previewEnabled: root.setting("preview", true) !== false
+    && String(root.setting("previewMode", "capture")) !== "off"
   readonly property string previewMode: Logic.previewMode(root.setting("previewMode", "capture"))
+  readonly property int previewSize: Util.clamp(Number(root.setting("previewSize", 220)), 100, 800)
+  readonly property bool addButtonEnabled: root.setting("addButton", true) !== false
+  readonly property bool renameEnabled: root.setting("rename", true) !== false
+  readonly property bool reorderEnabled: root.setting("reorder", true) !== false
+  readonly property string renumberLua: String(root.setting("renumberLua", ""))
+  readonly property bool middleClickMove: root.setting("middleClickMove", true) !== false
+  readonly property bool scrollSwitch: root.setting("scrollSwitch", true) !== false
+  readonly property bool animate: root.setting("animate", true) !== false
 
   // Theme. The bar's own colors where the host passes them, else the palette.
   readonly property color ink: root.bar ? root.bar.barForeground : Color.bar.text
   readonly property color urgentColor: root.bar ? root.bar.urgent : Color.urgent
   readonly property color accent: Color.accent
-  readonly property color onAccent: Color.background
+  // Text on the pill: the theme's background, unless its foreground reads
+  // better on the accent (light themes with a dark accent).
+  readonly property color onAccent: Logic.contrast(Color.accent, Color.foreground) > Logic.contrast(Color.accent, Color.background)
+    ? Color.foreground : Color.background
   readonly property string fontFamily: root.bar && root.bar.fontFamily !== "" ? root.bar.fontFamily : Style.font.family
 
   // The pill sits this far in from the bar's edges, and a button is never
@@ -94,8 +113,10 @@ BarWidget {
     return ws !== null && ws.windows > 0
   }
 
-  function isActive(id) {
-    return root.hypr.activeIds.indexOf(id) !== -1
+  // Shown on another monitor. The focused monitor's workspace is left out,
+  // so the one just left doesn't flash an outline before hyprctl catches up.
+  function isShownElsewhere(id) {
+    return id !== root.focusedId && root.hypr.elsewhereIds.indexOf(id) !== -1
   }
 
   function isSpecialOpen(name) {
@@ -221,9 +242,94 @@ BarWidget {
     root.dispatch("hl.dsp.window.move({ workspace = " + root.luaString(target) + ", follow = false })")
   }
 
+  // A new workspace, one past the last, and go there. Hyprland makes it on
+  // focus, and drops it again when it's left empty.
+  function createWorkspace() {
+    root.activate(Logic.nextId(root.normalIds))
+  }
+
+  // Ask for a name in Omarchy's input prompt, then have Hyprland rename the
+  // workspace. An empty name puts its number back.
+  function renameWorkspace(id) {
+    if (!root.bar || id <= 0) return
+    var ws = root.workspaceById(id)
+    var prompt = "Rename " + Logic.title(id, ws ? ws.name : "")
+    root.bar.run("name=$(omarchy-menu-input " + Util.shellQuote(prompt) + " --width 450) || exit 0; "
+      + "name=${name//]==]/}; "
+      + "hyprctl eval \"hl.dispatch(hl.dsp.workspace.rename({ workspace = '" + id + "', name = [==[${name:-" + id + "}]==] }))\"")
+  }
+
+  // Move workspace `id` to position `index` along the bar, by renumbering
+  // the workspaces in between (Logic.reorderPlan), in one `hyprctl eval`.
+  function reorder(id, index) {
+    if (!root.bar) return
+    var steps = Logic.reorderPlan(root.normalIds, id, index)
+    if (steps.length === 0) return
+    root.bar.run("hyprctl eval " + Util.shellQuote(Logic.renumberScript(steps, root.renumberLua)))
+    root.refresh()
+  }
+
+  // Dragging a workspace: the button follows the pointer along the bar, and
+  // a marker shows where it would land.
+  property int dragId: 0
+  property int dropAt: -1
+
+  function otherButtons(id) {
+    var out = []
+    for (var i = 0; i < normalRepeater.count; i++) {
+      var item = normalRepeater.itemAt(i)
+      if (item && item.workspaceId !== id) out.push(item)
+    }
+    return out
+  }
+
+  function beginDrag(button) {
+    root.hidePreview()
+    button.hideOwnTooltip()
+    root.dragId = button.workspaceId
+    root.moveDrag(button)
+  }
+
+  function moveDrag(button) {
+    var others = root.otherButtons(button.workspaceId)
+    var centres = []
+    for (var i = 0; i < others.length; i++) {
+      centres.push(root.vertical ? others[i].y + others[i].height / 2 : others[i].x + others[i].width / 2)
+    }
+    var at = root.vertical
+      ? button.y + button.dragOffset + button.height / 2
+      : button.x + button.dragOffset + button.width / 2
+    root.dropAt = Logic.dropIndex(centres, at)
+  }
+
+  function endDrag(button) {
+    var id = root.dragId
+    var index = root.dropAt
+    root.dragId = 0
+    root.dropAt = -1
+    button.dragOffset = 0
+    if (id !== 0 && index >= 0) root.reorder(id, index)
+  }
+
+  // Where the drop marker goes, along the bar: in the gap before the button
+  // the dragged one would land in front of, or after the last.
+  readonly property real dropMarkerPos: {
+    if (root.dragId === 0 || root.dropAt < 0) return -1
+    var others = root.otherButtons(root.dragId)
+    if (others.length === 0) return -1
+    var gap = root.vertical ? grid.rowSpacing : grid.columnSpacing
+    if (root.dropAt < others.length) {
+      var next = others[root.dropAt]
+      return (root.vertical ? next.y : next.x) - gap / 2
+    }
+    var last = others[others.length - 1]
+    return (root.vertical ? last.y + last.height : last.x + last.width) + gap / 2
+  }
+
   property int wheelAccum: 0
 
   function handleWheel(delta) {
+    if (!root.scrollSwitch) return
     root.wheelAccum += delta
     while (root.wheelAccum >= 120) { root.wheelAccum -= 120; root.step(-1) }
     while (root.wheelAccum <= -120) { root.wheelAccum += 120; root.step(1) }
@@ -243,7 +349,7 @@ BarWidget {
   property Item pendingAnchor: null
 
   function requestPreview(id, anchor) {
-    if (root.previewMode === "off" || !root.hasWindows(id)) return
+    if (!root.previewEnabled || root.dragId !== 0 || !root.hasWindows(id)) return
     // Windows move and resize without telling anyone; get their places now.
     root.refresh()
     previewHide.stop()
@@ -367,7 +473,14 @@ BarWidget {
     var out = []
     for (var i = 0; i < normalRepeater.count; i++) {
       var item = normalRepeater.itemAt(i)
-      if (item) out.push({ id: item.workspaceId, x: item.x, y: item.y, width: item.width, height: item.height })
+      if (!item) continue
+      out.push({
+        id: item.workspaceId,
+        x: item.x + (root.vertical ? 0 : item.dragOffset),
+        y: item.y + (root.vertical ? item.dragOffset : 0),
+        width: item.width,
+        height: item.height
+      })
     }
     return out
   }
@@ -384,10 +497,13 @@ BarWidget {
     radius: Math.min(width, height) / 2
     color: root.accent
 
-    Behavior on x { enabled: root.pillAnimates; NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
-    Behavior on y { enabled: root.pillAnimates; NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
-    Behavior on width { enabled: root.pillAnimates; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-    Behavior on height { enabled: root.pillAnimates; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+    // Not while a drag moves it: it has to keep up with the pointer.
+    readonly property bool animates: root.animate && root.pillAnimates && root.dragId === 0
+
+    Behavior on x { enabled: pill.animates; NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
+    Behavior on y { enabled: pill.animates; NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 0.9 } }
+    Behavior on width { enabled: pill.animates; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+    Behavior on height { enabled: pill.animates; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
     Behavior on color { ColorAnimation { duration: 200 } }
   }
 
@@ -395,7 +511,8 @@ BarWidget {
     id: grid
     anchors.fill: parent
     anchors.rightMargin: root.trailingGap
-    columns: root.vertical ? 1 : root.normalIds.length + root.specialIds.length + (separator.visible ? 1 : 0)
+    columns: root.vertical ? 1 : root.normalIds.length + root.specialIds.length
+      + (addButton.visible ? 1 : 0) + (separator.visible ? 1 : 0)
     columnSpacing: root.vertical ? 0 : Style.space(2)
     rowSpacing: root.vertical ? Style.space(2) : 0
 
@@ -405,9 +522,33 @@ BarWidget {
       WorkspaceButton { required property int modelData; host: root; workspaceId: modelData }
     }
 
+    WidgetButton {
+      id: addButton
+      bar: root.bar
+      text: "+"
+      hasVisualContent: root.addButtonEnabled
+      fontFamily: root.fontFamily
+      foreground: Util.alpha(root.ink, addButton.tooltipHovered ? 1 : 0.55)
+      tooltipText: "New workspace"
+      fixedWidth: root.vertical ? root.barSize : root.pillThickness
+      fixedHeight: root.vertical ? root.pillThickness : root.barSize
+      onPressed: function(which) { if (which === Qt.LeftButton) root.createWorkspace() }
+      onWheelMoved: function(delta) { root.handleWheel(delta) }
+
+      Rectangle {
+        anchors.centerIn: parent
+        width: root.pillThickness
+        height: root.pillThickness
+        radius: width / 2
+        color: Util.alpha(root.ink, 0.10)
+        opacity: addButton.tooltipHovered ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+      }
+    }
+
     Rectangle {
       id: separator
-      visible: root.normalIds.length > 0 && root.specialIds.length > 0
+      visible: (root.normalIds.length > 0 || addButton.visible) && root.specialIds.length > 0
       Layout.alignment: Qt.AlignCenter
       Layout.leftMargin: root.vertical ? 0 : Style.space(4)
       Layout.rightMargin: root.vertical ? 0 : Style.space(4)
@@ -423,6 +564,17 @@ BarWidget {
       model: root.specialIds
       WorkspaceButton { required property int modelData; host: root; workspaceId: modelData }
     }
+  }
+
+  // Where a dragged workspace would land.
+  Rectangle {
+    visible: root.dropMarkerPos >= 0
+    x: root.vertical ? root.pillInset : Math.round(root.dropMarkerPos - width / 2)
+    y: root.vertical ? Math.round(root.dropMarkerPos - height / 2) : root.pillInset
+    width: root.vertical ? root.pillThickness : Math.max(2, Style.space(2))
+    height: root.vertical ? Math.max(2, Style.space(2)) : root.pillThickness
+    radius: Math.min(width, height) / 2
+    color: root.accent
   }
 
   // Scriptable, and how the README's screenshots are taken:
@@ -447,5 +599,11 @@ BarWidget {
     function next(): void { root.step(1) }
     function prev(): void { root.step(-1) }
     function resync(): void { root.refresh() }
+    function add(): void { root.createWorkspace() }
+    function rename(id: string): void { root.renameWorkspace(parseInt(id, 10) || root.focusedId) }
+    function move(id: string, position: string): void {
+      // `position` counts from 1, as the bar reads left to right.
+      root.reorder(parseInt(id, 10) || 0, (parseInt(position, 10) || 1) - 1)
+    }
   }
 }

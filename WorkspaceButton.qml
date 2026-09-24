@@ -19,7 +19,7 @@ WidgetButton {
   readonly property string wsName: workspace ? workspace.name : ""
 
   readonly property bool focused: !special && host.focusedId === workspaceId
-  readonly property bool shown: special ? host.isSpecialOpen(wsName) : (host.isActive(workspaceId) && !focused)
+  readonly property bool shown: special ? host.isSpecialOpen(wsName) : host.isShownElsewhere(workspaceId)
   readonly property bool occupied: workspace !== null && workspace.windows > 0
   readonly property bool urgent: !focused && host.isUrgent(workspaceId)
 
@@ -43,7 +43,7 @@ WidgetButton {
 
   // A preview says more than a tooltip, so the tooltip only shows where there
   // is no preview to open.
-  tooltipText: host.previewMode !== "off" && occupied ? "" : Logic.title(workspaceId, wsName)
+  tooltipText: host.previewEnabled && occupied ? "" : Logic.title(workspaceId, wsName)
 
   onTooltipHoveredChanged: {
     if (tooltipHovered) host.requestPreview(workspaceId, button)
@@ -52,9 +52,20 @@ WidgetButton {
 
   onPressed: function(which) {
     if (which === Qt.LeftButton) host.activate(workspaceId)
-    else if (which === Qt.MiddleButton) host.sendFocusedWindow(workspaceId)
+    else if (which === Qt.RightButton && host.renameEnabled && !special) host.renameWorkspace(workspaceId)
+    else if (which === Qt.MiddleButton && host.middleClickMove) host.sendFocusedWindow(workspaceId)
   }
   onWheelMoved: function(delta) { host.handleWheel(delta) }
+
+  // How far a drag has carried the button along the bar. Workspaces.qml
+  // reads it too, so the pill follows a dragged focused workspace.
+  property real dragOffset: 0
+  readonly property bool dragging: host.dragId === workspaceId
+  z: dragging ? 10 : 0
+  transform: Translate {
+    x: button.vertical ? 0 : button.dragOffset
+    y: button.vertical ? button.dragOffset : 0
+  }
 
   // The washes share the pill's shape: inset from the bar's edges on its
   // cross axis, fully rounded.
@@ -79,7 +90,7 @@ WidgetButton {
     opacity: 1
 
     SequentialAnimation on opacity {
-      running: button.urgent
+      running: button.urgent && button.host.animate
       loops: Animation.Infinite
       alwaysRunToEnd: true
       NumberAnimation { from: 1; to: 0.35; duration: 700; easing.type: Easing.InOutSine }
@@ -112,5 +123,32 @@ WidgetButton {
 
     Behavior on color { ColorAnimation { duration: 160 } }
     Behavior on opacity { NumberAnimation { duration: 140 } }
+  }
+
+  // Declared last, so it lies over the base button's MouseArea: it sees the
+  // press first, lets the click through, and only takes over once the
+  // pointer has moved far enough to be a drag.
+  Item {
+    anchors.fill: parent
+
+    DragHandler {
+      id: drag
+      enabled: button.host.reorderEnabled && !button.special && button.host.normalIds.length > 1
+      target: null
+      acceptedButtons: Qt.LeftButton
+      xAxis.enabled: !button.vertical
+      yAxis.enabled: button.vertical
+      cursorShape: Qt.ClosedHandCursor
+
+      onActiveChanged: {
+        if (active) button.host.beginDrag(button)
+        else button.host.endDrag(button)
+      }
+      onTranslationChanged: {
+        if (!active) return
+        button.dragOffset = button.vertical ? translation.y : translation.x
+        button.host.moveDrag(button)
+      }
+    }
   }
 }

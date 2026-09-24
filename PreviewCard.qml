@@ -20,10 +20,15 @@ PopupCard {
   // fittedContentHeight adds the padding and border, fittedContentWidth
   // doesn't, so the horizontal inset is added here.
   readonly property real horizontalInset: card.padding * 2 + Border.left(card.borderSpec) + Border.right(card.borderSpec)
-  readonly property real wellWidth: Math.min(Style.space(360), Math.max(1, card.availableCardWidth - card.horizontalInset))
-  readonly property real wellHeight: host.previewScreen && host.previewScreen.width > 0
-    ? Math.round(card.wellWidth * host.previewScreen.height / host.previewScreen.width)
-    : Math.round(card.wellWidth * 9 / 16)
+  // The well has the monitor's shape and the height the `previewSize`
+  // setting asks for, so an ultrawide monitor gets a wider card rather than a
+  // thinner one. It shrinks to fit the screen.
+  readonly property real aspect: host.previewScreen && host.previewScreen.width > 0 && host.previewScreen.height > 0
+    ? host.previewScreen.width / host.previewScreen.height : 16 / 9
+  readonly property real wellWidth: Math.round(Math.min(
+    Style.space(host.previewSize) * card.aspect,
+    Math.max(1, card.availableCardWidth - card.horizontalInset)))
+  readonly property real wellHeight: Math.round(card.wellWidth / card.aspect)
 
   contentWidth: card.fittedContentWidth(card.wellWidth + card.horizontalInset)
   contentHeight: card.fittedContentHeight(header.height + column.spacing + card.wellHeight)

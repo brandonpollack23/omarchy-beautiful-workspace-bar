@@ -163,6 +163,8 @@ function hyprState(workspaces, monitors, clients) {
     focusedId: 0,
     focusedMonitor: "",
     activeIds: [],
+    // Active on a monitor other than the focused one: shown, but not focused.
+    elsewhereIds: [],
     openSpecials: [],
     monitors: {},
     clients: [],
@@ -199,6 +201,8 @@ function hyprState(workspaces, monitors, clients) {
     if (mon.focused) {
       state.focusedMonitor = name
       state.focusedId = active > 0 ? active : 0
+    } else if (active > 0 && state.elsewhereIds.indexOf(active) === -1) {
+      state.elsewhereIds.push(active)
     }
     var special = mon.specialWorkspace ? String(mon.specialWorkspace.name || "") : ""
     if (special !== "" && state.openSpecials.indexOf(special) === -1) state.openSpecials.push(special)
@@ -226,6 +230,85 @@ function urgentIds(urgent, windowWorkspace, focusedId) {
   return out
 }
 
+// WCAG relative luminance of {r, g, b} with channels in 0..1.
+function luminance(c) {
+  function channel(v) {
+    var x = Number(v) || 0
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)
+  }
+  return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+}
+
+function contrast(a, b) {
+  var la = luminance(a)
+  var lb = luminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+
+// Where a dragged workspace would land: how many of the other buttons'
+// centres (along the bar, in order) lie before the point it is dragged to.
+function dropIndex(centres, position) {
+  var list = Array.isArray(centres) ? centres : []
+  var n = 0
+  for (var i = 0; i < list.length; i++) if (list[i] < position) n++
+  return n
+}
+
+// The renumbering that moves workspace `fromId` to position `toIndex` among
+// `ids` (sorted), as [from, to] id changes in order. The workspaces keep the
+// same set of ids, so any gaps stay where they are. Every workspace that moves
+// first goes to a temporary id above all of them, so no two ever share one.
+function reorderPlan(ids, fromId, toIndex) {
+  var list = Array.isArray(ids) ? ids.slice() : []
+  list.sort(function(a, b) { return a - b })
+  var at = list.indexOf(fromId)
+  if (at === -1) return []
+  var order = list.slice()
+  order.splice(at, 1)
+  var index = Math.max(0, Math.min(order.length, Math.floor(Number(toIndex) || 0)))
+  order.splice(index, 0, fromId)
+  var moves = []
+  for (var i = 0; i < order.length; i++) {
+    if (order[i] !== list[i]) moves.push({ from: order[i], to: list[i] })
+  }
+  if (moves.length === 0) return []
+  var base = list[list.length - 1] + 1
+  var steps = []
+  for (var m = 0; m < moves.length; m++) steps.push([moves[m].from, base + m])
+  for (var k = 0; k < moves.length; k++) steps.push([base + k, moves[k].to])
+  return steps
+}
+
+// Hyprland's own way to give a workspace a new id. A config that keeps
+// something per workspace id (saved layouts, say) can swap in a function of
+// its own through the `renumberLua` setting.
+var DEFAULT_RENUMBER = 'hl.dispatch(hl.dsp.workspace.change_id({ workspace = "{from}", id = {to} }))'
+
+// One Lua chunk for `hyprctl eval` that runs `steps` through `template`,
+// where {from} and {to} stand for the ids.
+function renumberScript(steps, template) {
+  var t = String(template || "").trim()
+  if (t === "") t = DEFAULT_RENUMBER
+  var lines = []
+  var list = Array.isArray(steps) ? steps : []
+  for (var i = 0; i < list.length; i++) {
+    var from = Math.floor(Number(list[i][0]))
+    var to = Math.floor(Number(list[i][1]))
+    if (!isFinite(from) || !isFinite(to)) continue
+    lines.push(t.split("{from}").join(String(from)).split("{to}").join(String(to)))
+  }
+  return lines.join("\n")
+}
+
+// The id a new workspace at the end of the bar gets.
+function nextId(ids) {
+  var list = Array.isArray(ids) ? ids : []
+  var max = 0
+  for (var i = 0; i < list.length; i++) if (list[i] > max) max = list[i]
+  return max + 1
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     specialName: specialName,
@@ -239,6 +322,11 @@ if (typeof module !== "undefined") {
     pillGeometry: pillGeometry,
     address: address,
     hyprState: hyprState,
-    urgentIds: urgentIds
+    urgentIds: urgentIds,
+    contrast: contrast,
+    dropIndex: dropIndex,
+    reorderPlan: reorderPlan,
+    renumberScript: renumberScript,
+    nextId: nextId
   }
 }

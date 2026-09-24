@@ -117,6 +117,7 @@ test("hyprState reads workspaces, focus, specials and window placement", () => {
   assert.equal(state.focusedId, 2)
   assert.equal(state.focusedMonitor, "DP-1")
   assert.deepEqual(state.activeIds, [2, 1])
+  assert.deepEqual(state.elsewhereIds, [1])
   assert.deepEqual(state.openSpecials, ["special:scratchpad"])
   assert.deepEqual(Object.keys(state.monitors), ["DP-1", "HDMI-A-1"])
   assert.equal(state.monitors["DP-1"].scale, 1.25)
@@ -134,4 +135,61 @@ test("urgentIds marks workspaces with urgent windows, not the focused one", () =
   const where = { a: 2, b: 3, c: 3, d: 1 }
   assert.deepEqual(Logic.urgentIds({ a: true, b: true, c: true, d: true, gone: true }, where, 1), [2, 3])
   assert.deepEqual(Logic.urgentIds({ a: false }, where, 1), [])
+})
+
+test("contrast follows WCAG, so text on the pill can be chosen", () => {
+  const white = { r: 1, g: 1, b: 1 }
+  const black = { r: 0, g: 0, b: 0 }
+  const paleBlue = { r: 0.54, g: 0.71, b: 0.98 }
+  const deepBlue = { r: 0.13, g: 0.35, b: 0.62 }
+  assert.equal(Math.round(Logic.contrast(white, black)), 21)
+  assert.ok(Logic.contrast(paleBlue, black) > Logic.contrast(paleBlue, white))
+  assert.ok(Logic.contrast(deepBlue, white) > Logic.contrast(deepBlue, black))
+})
+
+test("dropIndex counts the buttons before the drop point", () => {
+  assert.equal(Logic.dropIndex([10, 50, 90], 5), 0)
+  assert.equal(Logic.dropIndex([10, 50, 90], 60), 2)
+  assert.equal(Logic.dropIndex([10, 50, 90], 200), 3)
+})
+
+// Replays a plan on a map of id -> name, failing if two workspaces would
+// ever share an id.
+function replay(names, steps) {
+  const ws = new Map(Object.entries(names).map(([id, n]) => [Number(id), n]))
+  for (const [from, to] of steps) {
+    assert.ok(ws.has(from), `no workspace ${from}`)
+    assert.ok(!ws.has(to), `id ${to} is taken`)
+    ws.set(to, ws.get(from))
+    ws.delete(from)
+  }
+  return [...ws.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1])
+}
+
+test("reorderPlan moves a workspace without id clashes", () => {
+  const names = { 1: "a", 2: "b", 3: "c", 4: "d" }
+  assert.deepEqual(replay(names, Logic.reorderPlan([1, 2, 3, 4], 4, 1)), ["a", "d", "b", "c"])
+  assert.deepEqual(replay(names, Logic.reorderPlan([1, 2, 3, 4], 1, 3)), ["b", "c", "d", "a"])
+  assert.deepEqual(replay(names, Logic.reorderPlan([4, 1, 3, 2], 2, 0)), ["b", "a", "c", "d"])
+  assert.deepEqual(Logic.reorderPlan([1, 2, 3], 2, 1), [])
+  assert.deepEqual(Logic.reorderPlan([1, 2, 3], 9, 0), [])
+})
+
+test("reorderPlan keeps gaps in the ids", () => {
+  const plan = Logic.reorderPlan([1, 3, 7], 7, 0)
+  assert.deepEqual(replay({ 1: "a", 3: "b", 7: "c" }, plan), ["c", "a", "b"])
+  assert.ok(plan.every(([, to]) => to === 8 || to === 9 || to === 10 || [1, 3, 7].includes(to)))
+})
+
+test("renumberScript fills the template, defaulting to change_id", () => {
+  assert.equal(Logic.renumberScript([[4, 5], [5, 1]], ""),
+    'hl.dispatch(hl.dsp.workspace.change_id({ workspace = "4", id = 5 }))\n'
+    + 'hl.dispatch(hl.dsp.workspace.change_id({ workspace = "5", id = 1 }))')
+  assert.equal(Logic.renumberScript([[2, 9]], "require('hypr.workspaces').renumber({from}, {to})"),
+    "require('hypr.workspaces').renumber(2, 9)")
+})
+
+test("nextId is one past the last workspace", () => {
+  assert.equal(Logic.nextId([1, 2, 5]), 6)
+  assert.equal(Logic.nextId([]), 1)
 })
