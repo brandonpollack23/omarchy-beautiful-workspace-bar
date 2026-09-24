@@ -1,12 +1,18 @@
 # Beautiful Workspace Bar
 
-An [Omarchy](https://omarchy.org) bar widget that shows every Hyprland
-workspace by the name Hyprland gives it. An accent pill slides to the focused
-one, urgent workspaces pulse, and hovering shows a workspace's windows. You
-can drag workspaces into a new order, rename one with a right-click, and add
-one with **+**. It replaces Omarchy's built-in `omarchy.workspaces`.
+> [!WARNING]
+> This plugin was written entirely by Claude Opus 5.5, from two prompts. Use
+> it at your own risk.
 
-![The pill sliding between workspaces](docs/pill.gif)
+An [Omarchy](https://omarchy.org) bar widget that shows every Hyprland
+workspace by the name Hyprland gives it. Hidden (special) workspaces such as
+the scratchpad are there too, after a separator: click one to show or hide
+it, and it's outlined while it's open. An accent pill slides to the focused
+workspace, urgent workspaces pulse, and hovering shows a workspace's windows.
+You can drag workspaces into a new order, rename one with a right-click, and
+add one with **+**. It replaces Omarchy's built-in `omarchy.workspaces`.
+
+![The pill sliding between workspaces, and the scratchpad opening and closing](docs/pill.gif)
 
 ## Features
 
