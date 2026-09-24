@@ -28,18 +28,12 @@ PopupCard {
   contentWidth: card.fittedContentWidth(card.wellWidth + card.horizontalInset)
   contentHeight: card.fittedContentHeight(header.height + column.spacing + card.wellHeight)
 
-  // Kept while the card fades out, so its text doesn't blank mid-fade.
-  property int shownId: 0
-  onOpenChanged: if (open) card.shownId = host.hoverId
-  Connections {
-    target: card.host
-    function onHoverIdChanged() { if (card.host.hoverId !== 0) card.shownId = card.host.hoverId }
-  }
-
   property int wallpaperStamp: 0
-  onVisibleChanged: if (!visible) card.wallpaperStamp++
-
-  readonly property var shownWorkspace: card.shownId !== 0 ? host.workspaceById(card.shownId) : null
+  onVisibleChanged: {
+    if (card.visible) return
+    card.wallpaperStamp++
+    if (card.host.hoverId === 0) card.host.shownId = 0
+  }
   readonly property string activeAddress: Hyprland.activeToplevel ? String(Hyprland.activeToplevel.address || "") : ""
 
   Column {
@@ -61,7 +55,7 @@ PopupCard {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         elide: Text.ElideRight
-        text: Logic.title(card.shownId, card.shownWorkspace ? card.shownWorkspace.name : "")
+        text: Logic.title(card.host.shownId, card.host.previewWorkspace ? card.host.previewWorkspace.name : "")
         color: Color.popups.text
         font.family: card.host.fontFamily
         font.pixelSize: Style.font.body
@@ -76,7 +70,7 @@ PopupCard {
         text: {
           var n = card.host.previewWindows.length
           var words = n + (n === 1 ? " window" : " windows")
-          return card.shownId === card.host.focusedId ? words + "  ·  here" : words
+          return card.host.shownId === card.host.focusedId ? words + "  ·  here" : words
         }
         color: Util.alpha(Color.popups.text, 0.6)
         font.family: card.host.fontFamily

@@ -252,12 +252,21 @@ BarWidget {
   // closes it rather than leaving it pointing at nothing.
   onNormalIdsChanged: if (root.hoverId > 0 && root.normalIds.indexOf(root.hoverId) === -1) root.hidePreview()
 
-  readonly property var previewWorkspace: root.hoverId !== 0 ? root.workspaceById(root.hoverId) : null
+  // The workspace the card shows. It outlives `hoverId` while the card fades
+  // out, and is cleared once the card is hidden, so hovering the same
+  // workspace again takes fresh screenshots.
+  property int shownId: 0
+  onHoverIdChanged: {
+    if (root.hoverId !== 0) root.shownId = root.hoverId
+    else if (!previewCard.visible) root.shownId = 0
+  }
+
+  readonly property var previewWorkspace: root.shownId !== 0 ? root.workspaceById(root.shownId) : null
 
   // A special workspace that has never been shown has no monitor; fall back
   // to the focused one.
   readonly property var previewMonitor: {
-    if (root.hoverId === 0) return null
+    if (root.shownId === 0) return null
     var ws = root.previewWorkspace
     return ws && ws.monitor ? ws.monitor : Hyprland.focusedMonitor
   }
@@ -274,13 +283,13 @@ BarWidget {
   // Only each window's `hyprctl clients` snapshot is read, never
   // `toplevel.workspace` (placeholder objects at startup have crashed the shell).
   readonly property var previewWindows: {
-    if (root.hoverId === 0) return []
+    if (root.shownId === 0) return []
     var all = Hyprland.toplevels.values
     var snapshots = []
     var toplevels = []
     for (var i = 0; i < all.length; i++) {
       var ipc = all[i].lastIpcObject
-      if (ipc && ipc.workspace && Number(ipc.workspace.id) === root.hoverId) {
+      if (ipc && ipc.workspace && Number(ipc.workspace.id) === root.shownId) {
         snapshots.push(ipc)
         toplevels.push(all[i])
       }
@@ -310,7 +319,7 @@ BarWidget {
     function close() { root.hidePreview() }
   }
 
-  PreviewCard { host: root }
+  PreviewCard { id: previewCard; host: root }
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
 
