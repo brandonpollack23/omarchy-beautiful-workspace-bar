@@ -37,28 +37,39 @@ BarWidget {
   readonly property int pillThickness: Math.max(0, root.barSize - root.pillInset * 2)
   readonly property real buttonPadding: Style.spaceReal(9)
 
-  readonly property int focusedId: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 0
+  // Hyprland's state, as Logic.hyprState reads it from hyprctl. Quickshell's
+  // own workspace objects aren't used: after `hl.dsp.workspace.change_id`
+  // (a script renumbering workspaces) Quickshell 0.3.1 keeps stale and
+  // duplicate ids, and no refresh clears them.
+  property var hypr: Logic.hyprState([], [], [])
+
+  // Set straight from the `workspacev2` event, so the pill moves without
+  // waiting for hyprctl, then confirmed by each state read.
+  property int focusedId: 0
 
   // Which workspaces to draw. Only ids (and, for special workspaces, names)
   // are read here, so renaming a regular workspace does not rebuild the
   // buttons; each button follows its own workspace's name. The lists are only
   // replaced when they really change, since a Repeater recreates every button
   // when its model is set.
-  readonly property var computedEntries: {
-    var values = Hyprland.workspaces.values
-    var list = []
-    for (var i = 0; i < values.length; i++) {
-      var id = values[i].id
-      list.push({ id: id, name: id < 0 ? values[i].name : "" })
-    }
-    return Logic.entries(list, root.showSpecial)
-  }
-
   property var normalIds: []
   property var specialIds: []
 
+  function applyState(text) {
+    var parsed
+    try {
+      parsed = JSON.parse(text)
+    } catch (e) {
+      return
+    }
+    var next = Logic.hyprState(parsed.workspaces, parsed.monitors, parsed.clients)
+    root.hypr = next
+    if (next.focusedId > 0) root.focusedId = next.focusedId
+    root.syncEntries()
+  }
+
   function syncEntries() {
-    var next = root.computedEntries
+    var next = Logic.entries(root.hypr.workspaces, root.showSpecial)
     if (JSON.stringify(next.normal) !== JSON.stringify(root.normalIds)) {
       root.pillAnimates = false
       root.normalIds = next.normal
@@ -67,75 +78,92 @@ BarWidget {
     if (JSON.stringify(next.special) !== JSON.stringify(root.specialIds)) root.specialIds = next.special
   }
 
-  onComputedEntriesChanged: root.syncEntries()
-  Component.onCompleted: {
-    root.syncEntries()
-    root.loadOpenSpecials()
-  }
+  onShowSpecialChanged: root.syncEntries()
+  Component.onCompleted: root.refresh()
 
   function workspaceById(id) {
-    var values = Hyprland.workspaces.values
-    for (var i = 0; i < values.length; i++) {
-      if (values[i].id === id) return values[i]
+    var list = root.hypr.workspaces
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) return list[i]
     }
     return null
   }
 
   function hasWindows(id) {
     var ws = root.workspaceById(id)
-    return ws !== null && ws.toplevels.values.length > 0
+    return ws !== null && ws.windows > 0
   }
 
-  // Keeping up with Hyprland: Quickshell 0.3 doesn't follow
-  // `changeworkspaceid`, which `hl.dsp.workspace.change_id` sends. A
-  // renumbering sends a burst of them, and Quickshell drops a refresh asked
-  // for while one is running, so refresh once the burst is over and once more
-  // after that.
-  Timer {
-    id: resyncTimer
-    interval: 30
-    onTriggered: {
-      Hyprland.refreshWorkspaces()
-      resyncSettle.restart()
-    }
-  }
-
-  Timer {
-    id: resyncSettle
-    interval: 150
-    onTriggered: {
-      Hyprland.refreshWorkspaces()
-      Hyprland.refreshMonitors()
-      Hyprland.refreshToplevels()
-    }
-  }
-
-  // Window geometry and class only arrive with `hyprctl clients`.
-  Timer {
-    id: toplevelRefresh
-    interval: 40
-    onTriggered: Hyprland.refreshToplevels()
-  }
-
-  // Special workspaces shown on each monitor, by monitor name.
-  property var openSpecials: ({})
-
-  function loadOpenSpecials() {
-    var open = {}
-    var monitors = Hyprland.monitors.values
-    for (var i = 0; i < monitors.length; i++) {
-      var ipc = monitors[i].lastIpcObject
-      var special = ipc && ipc.specialWorkspace ? String(ipc.specialWorkspace.name || "") : ""
-      if (special !== "") open[monitors[i].name] = special
-    }
-    root.openSpecials = open
+  function isActive(id) {
+    return root.hypr.activeIds.indexOf(id) !== -1
   }
 
   function isSpecialOpen(name) {
-    for (var monitor in root.openSpecials) {
-      if (root.openSpecials[monitor] === name) return true
+    return root.hypr.openSpecials.indexOf(name) !== -1
+  }
+
+  // Windows that asked for attention, by address. Hyprland sends `urgent`
+  // once; a window stops counting when it's closed, or when its workspace is
+  // focused.
+  property var urgentWindows: ({})
+  readonly property var urgentIds: Logic.urgentIds(root.urgentWindows, root.hypr.windowWorkspace, root.focusedId)
+
+  function isUrgent(id) {
+    return root.urgentIds.indexOf(id) !== -1
+  }
+
+  function setUrgent(addr, on) {
+    var key = Logic.address(addr)
+    if (key === "" || !!root.urgentWindows[key] === on) return
+    var next = {}
+    for (var k in root.urgentWindows) if (k !== key) next[k] = root.urgentWindows[k]
+    if (on) next[key] = true
+    root.urgentWindows = next
+  }
+
+  function clearUrgentOn(id) {
+    var next = {}
+    var changed = false
+    for (var k in root.urgentWindows) {
+      if (root.hypr.windowWorkspace[k] === id) changed = true
+      else next[k] = root.urgentWindows[k]
     }
-    return false
+    if (changed) root.urgentWindows = next
+  }
+
+  onFocusedIdChanged: root.clearUrgentOn(root.focusedId)
+
+  // Reading Hyprland's state: one hyprctl round for workspaces, monitors and
+  // windows, after a burst of events has settled. A read asked for while one
+  // is running is done once it finishes.
+  property bool refreshPending: false
+
+  function refresh() {
+    refreshDebounce.restart()
+  }
+
+  Timer {
+    id: refreshDebounce
+    interval: 25
+    onTriggered: {
+      if (stateReader.running) root.refreshPending = true
+      else stateReader.running = true
+    }
+  }
+
+  Process {
+    id: stateReader
+    command: ["sh", "-c",
+      "printf '{\"workspaces\":%s,\"monitors\":%s,\"clients\":%s}' "
+      + "\"$(hyprctl -j workspaces)\" \"$(hyprctl -j monitors)\" \"$(hyprctl -j clients)\""]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyState(this.text)
+    }
+    onExited: {
+      if (!root.refreshPending) return
+      root.refreshPending = false
+      refreshDebounce.restart()
+    }
   }
 
   Connections {
@@ -143,22 +171,24 @@ BarWidget {
 
     function onRawEvent(event) {
       var name = String(event.name || "")
-      if (name === "changeworkspaceid") {
-        resyncTimer.restart()
-      } else if (name === "activespecial") {
-        // "<workspace>,<monitor>", the workspace empty when it was closed.
-        var data = String(event.data || "")
-        var comma = data.lastIndexOf(",")
-        var open = {}
-        for (var key in root.openSpecials) open[key] = root.openSpecials[key]
-        var workspace = data.substring(0, comma)
-        var monitor = data.substring(comma + 1)
-        if (workspace === "") delete open[monitor]
-        else open[monitor] = workspace
-        root.openSpecials = open
-      } else if (name === "openwindow" || name === "closewindow" || name === "movewindowv2"
-          || name === "changefloatingmode" || name === "fullscreen") {
-        toplevelRefresh.restart()
+      var data = String(event.data || "")
+      if (name === "workspacev2") {
+        // "<id>,<name>", for the focused monitor.
+        var id = parseInt(data, 10)
+        if (id > 0) root.focusedId = id
+        root.refresh()
+      } else if (name === "urgent") {
+        root.setUrgent(data, true)
+        root.refresh()
+      } else if (name === "closewindow") {
+        root.setUrgent(data, false)
+        root.refresh()
+      } else if (name === "createworkspacev2" || name === "destroyworkspacev2" || name === "renameworkspace"
+          || name === "changeworkspaceid" || name === "moveworkspacev2" || name === "focusedmon"
+          || name === "activespecial" || name === "openwindow" || name === "movewindowv2"
+          || name === "changefloatingmode" || name === "fullscreen"
+          || name === "monitoraddedv2" || name === "monitorremovedv2") {
+        root.refresh()
       }
     }
   }
@@ -214,7 +244,8 @@ BarWidget {
 
   function requestPreview(id, anchor) {
     if (root.previewMode === "off" || !root.hasWindows(id)) return
-    toplevelRefresh.restart()
+    // Windows move and resize without telling anyone; get their places now.
+    root.refresh()
     previewHide.stop()
     root.pendingId = id
     root.pendingAnchor = anchor
@@ -263,47 +294,47 @@ BarWidget {
 
   readonly property var previewWorkspace: root.shownId !== 0 ? root.workspaceById(root.shownId) : null
 
-  // A special workspace that has never been shown has no monitor; fall back
-  // to the focused one.
-  readonly property var previewMonitor: {
+  // The workspace's monitor in logical pixels. A special workspace that has
+  // never been shown has no monitor; the focused one stands in.
+  readonly property var previewScreen: {
     if (root.shownId === 0) return null
     var ws = root.previewWorkspace
-    return ws && ws.monitor ? ws.monitor : Hyprland.focusedMonitor
+    var m = ws && root.hypr.monitors[ws.monitor] ? root.hypr.monitors[ws.monitor] : root.hypr.monitors[root.hypr.focusedMonitor]
+    return m ? Logic.logicalMonitor(m) : null
   }
 
-  readonly property var previewScreen: {
-    var m = root.previewMonitor
-    if (!m) return null
-    return Logic.logicalMonitor({
-      x: m.x, y: m.y, width: m.width, height: m.height, scale: m.scale,
-      transform: m.lastIpcObject ? m.lastIpcObject.transform : 0
-    })
+  // The windows the card draws. Only replaced when they really change: a new
+  // model recreates every tile, and with it every screenshot.
+  property var previewWindows: []
+
+  function syncPreview() {
+    var list = []
+    if (root.shownId !== 0) {
+      var clients = root.hypr.clients
+      var here = []
+      for (var i = 0; i < clients.length; i++) {
+        if (Number(clients[i].workspace.id) === root.shownId) here.push(clients[i])
+      }
+      list = Logic.previewLayout(here, 12)
+    }
+    if (JSON.stringify(list) !== JSON.stringify(root.previewWindows)) root.previewWindows = list
   }
 
-  // Only each window's `hyprctl clients` snapshot is read, never
-  // `toplevel.workspace` (placeholder objects at startup have crashed the shell).
-  readonly property var previewWindows: {
-    if (root.shownId === 0) return []
+  onShownIdChanged: root.syncPreview()
+  onHyprChanged: {
+    root.clearUrgentOn(root.focusedId)
+    root.syncPreview()
+  }
+
+  // Quickshell's handle on a window, for the screenshot. Toplevels are keyed
+  // by address, which, unlike its workspace ids, never goes stale.
+  function toplevelFor(addr) {
+    var key = Logic.address(addr)
     var all = Hyprland.toplevels.values
-    var snapshots = []
-    var toplevels = []
     for (var i = 0; i < all.length; i++) {
-      var ipc = all[i].lastIpcObject
-      if (ipc && ipc.workspace && Number(ipc.workspace.id) === root.shownId) {
-        snapshots.push(ipc)
-        toplevels.push(all[i])
-      }
+      if (Logic.address(all[i].address) === key) return all[i]
     }
-    var layout = Logic.previewLayout(snapshots, 12)
-    for (var k = 0; k < layout.length; k++) {
-      for (var t = 0; t < toplevels.length; t++) {
-        if (String(toplevels[t].lastIpcObject.address || "") === layout[k].address) {
-          layout[k].toplevel = toplevels[t]
-          break
-        }
-      }
-    }
-    return layout
+    return null
   }
 
   function iconFor(cls) {
@@ -408,13 +439,13 @@ BarWidget {
         var item = normalRepeater.itemAt(i)
         if (item && item.workspaceId === n) anchor = item
       }
-      toplevelRefresh.restart()
+      root.refresh()
       root.hoverAnchor = anchor ? anchor : grid
       root.hoverId = n
     }
     function unpreview(): void { root.hidePreview() }
     function next(): void { root.step(1) }
     function prev(): void { root.step(-1) }
-    function resync(): void { resyncTimer.restart() }
+    function resync(): void { root.refresh() }
   }
 }

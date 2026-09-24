@@ -18,7 +18,8 @@ Rectangle {
   required property real originY
   property bool active: false
 
-  readonly property bool wantsCapture: host.previewMode === "capture" && !!win.toplevel && !!win.toplevel.wayland
+  readonly property var toplevel: host.toplevelFor(win.address)
+  readonly property bool wantsCapture: host.previewMode === "capture" && !!toplevel && !!toplevel.wayland
   // A capture gets this long to deliver a frame before the icon stands in.
   property bool settled: false
   readonly property bool captured: wantsCapture && shot.hasContent
@@ -46,7 +47,7 @@ Rectangle {
     anchors.fill: parent
     anchors.margins: tile.border.width
     visible: tile.captured
-    captureSource: tile.wantsCapture ? tile.win.toplevel.wayland : null
+    captureSource: tile.wantsCapture ? tile.toplevel.wayland : null
     live: false
     paintCursor: false
   }

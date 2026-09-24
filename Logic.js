@@ -145,6 +145,87 @@ function pillGeometry(buttons, id, vertical, inset) {
   return { visible: false, x: 0, y: 0, width: 0, height: 0 }
 }
 
+// Hyprland writes window addresses as "0x5dbe17026020"; Quickshell's
+// HyprlandToplevel.address drops the "0x". Compare them in one form.
+function address(value) {
+  var text = String(value || "").toLowerCase()
+  return text.indexOf("0x") === 0 ? text.substring(2) : text
+}
+
+// Everything the widget draws, from `hyprctl -j workspaces`, `monitors` and
+// `clients`. Quickshell 0.3.1 has its own workspace objects, but it ignores
+// `changeworkspaceid` and matches new workspaces by name, so once a script
+// renumbers workspaces they can hold stale or duplicate ids. Hyprland's own
+// answer is always right.
+function hyprState(workspaces, monitors, clients) {
+  var state = {
+    workspaces: [],
+    focusedId: 0,
+    focusedMonitor: "",
+    activeIds: [],
+    openSpecials: [],
+    monitors: {},
+    clients: [],
+    windowWorkspace: {}
+  }
+  var ws = Array.isArray(workspaces) ? workspaces : []
+  for (var i = 0; i < ws.length; i++) {
+    var w = ws[i]
+    if (!w) continue
+    var id = Number(w.id)
+    if (!isFinite(id) || id === 0) continue
+    state.workspaces.push({
+      id: id,
+      name: String(w.name === undefined || w.name === null ? id : w.name),
+      windows: Number(w.windows) || 0,
+      monitor: String(w.monitor || "")
+    })
+  }
+  var mons = Array.isArray(monitors) ? monitors : []
+  for (var m = 0; m < mons.length; m++) {
+    var mon = mons[m]
+    if (!mon || mon.disabled) continue
+    var name = String(mon.name || "")
+    state.monitors[name] = {
+      x: Number(mon.x) || 0,
+      y: Number(mon.y) || 0,
+      width: Number(mon.width) || 0,
+      height: Number(mon.height) || 0,
+      scale: Number(mon.scale) || 1,
+      transform: Number(mon.transform) || 0
+    }
+    var active = mon.activeWorkspace ? Number(mon.activeWorkspace.id) : 0
+    if (active > 0 && state.activeIds.indexOf(active) === -1) state.activeIds.push(active)
+    if (mon.focused) {
+      state.focusedMonitor = name
+      state.focusedId = active > 0 ? active : 0
+    }
+    var special = mon.specialWorkspace ? String(mon.specialWorkspace.name || "") : ""
+    if (special !== "" && state.openSpecials.indexOf(special) === -1) state.openSpecials.push(special)
+  }
+  var cl = Array.isArray(clients) ? clients : []
+  for (var c = 0; c < cl.length; c++) {
+    var client = cl[c]
+    if (!client || !client.workspace) continue
+    state.clients.push(client)
+    state.windowWorkspace[address(client.address)] = Number(client.workspace.id) || 0
+  }
+  return state
+}
+
+// The workspaces to mark urgent: those holding a window that asked for
+// attention (`urgent`, keyed by address), other than the focused one.
+function urgentIds(urgent, windowWorkspace, focusedId) {
+  var out = []
+  for (var addr in urgent) {
+    if (!urgent[addr]) continue
+    var id = windowWorkspace ? windowWorkspace[addr] : undefined
+    if (id === undefined || id === 0 || id === focusedId || out.indexOf(id) !== -1) continue
+    out.push(id)
+  }
+  return out
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     specialName: specialName,
@@ -155,6 +236,9 @@ if (typeof module !== "undefined") {
     previewMode: previewMode,
     logicalMonitor: logicalMonitor,
     previewLayout: previewLayout,
-    pillGeometry: pillGeometry
+    pillGeometry: pillGeometry,
+    address: address,
+    hyprState: hyprState,
+    urgentIds: urgentIds
   }
 }

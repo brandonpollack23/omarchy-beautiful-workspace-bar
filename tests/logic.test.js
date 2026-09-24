@@ -88,3 +88,50 @@ test("pillGeometry insets the pill on the bar's cross axis", () => {
   assert.deepEqual(Logic.pillGeometry(buttons, 1, true, 4), { visible: true, x: 4, y: 0, width: 32, height: 30 })
   assert.equal(Logic.pillGeometry(buttons, 7, false, 4).visible, false)
 })
+
+test("address compares Hyprland's and Quickshell's forms", () => {
+  assert.equal(Logic.address("0x5DBE17026020"), "5dbe17026020")
+  assert.equal(Logic.address("5dbe17026020"), "5dbe17026020")
+  assert.equal(Logic.address(undefined), "")
+})
+
+test("hyprState reads workspaces, focus, specials and window placement", () => {
+  const state = Logic.hyprState(
+    [
+      { id: 2, name: "Web", windows: 1, monitor: "DP-1" },
+      { id: -98, name: "special:scratchpad", windows: 2, monitor: "DP-1" },
+      { id: 1, name: "1", windows: 0, monitor: "HDMI-A-1" },
+      { id: 0, name: "half-made" },
+    ],
+    [
+      { name: "DP-1", x: 0, y: 0, width: 2560, height: 1440, scale: 1.25, transform: 0, focused: true,
+        activeWorkspace: { id: 2, name: "Web" }, specialWorkspace: { id: -98, name: "special:scratchpad" } },
+      { name: "HDMI-A-1", x: 2048, y: 0, width: 1920, height: 1080, scale: 1, focused: false,
+        activeWorkspace: { id: 1, name: "1" }, specialWorkspace: { id: 0, name: "" } },
+      { name: "off", disabled: true, focused: false, activeWorkspace: { id: 9 } },
+    ],
+    [{ address: "0xAB", workspace: { id: 2, name: "Web" } }, { address: "0xcd" }]
+  )
+  assert.deepEqual(state.workspaces.map(w => w.id), [2, -98, 1])
+  assert.equal(state.workspaces[0].windows, 1)
+  assert.equal(state.focusedId, 2)
+  assert.equal(state.focusedMonitor, "DP-1")
+  assert.deepEqual(state.activeIds, [2, 1])
+  assert.deepEqual(state.openSpecials, ["special:scratchpad"])
+  assert.deepEqual(Object.keys(state.monitors), ["DP-1", "HDMI-A-1"])
+  assert.equal(state.monitors["DP-1"].scale, 1.25)
+  assert.deepEqual(state.windowWorkspace, { ab: 2 })
+  assert.equal(state.clients.length, 1)
+})
+
+test("hyprState survives missing or broken input", () => {
+  const state = Logic.hyprState(undefined, null, "nope")
+  assert.deepEqual(state.workspaces, [])
+  assert.equal(state.focusedId, 0)
+})
+
+test("urgentIds marks workspaces with urgent windows, not the focused one", () => {
+  const where = { a: 2, b: 3, c: 3, d: 1 }
+  assert.deepEqual(Logic.urgentIds({ a: true, b: true, c: true, d: true, gone: true }, where, 1), [2, 3])
+  assert.deepEqual(Logic.urgentIds({ a: false }, where, 1), [])
+})

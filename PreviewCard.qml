@@ -34,7 +34,7 @@ PopupCard {
     card.wallpaperStamp++
     if (card.host.hoverId === 0) card.host.shownId = 0
   }
-  readonly property string activeAddress: Hyprland.activeToplevel ? String(Hyprland.activeToplevel.address || "") : ""
+  readonly property string activeAddress: Hyprland.activeToplevel ? Logic.address(Hyprland.activeToplevel.address) : ""
 
   Column {
     id: column
@@ -122,7 +122,7 @@ PopupCard {
           s: well.s
           originX: well.originX
           originY: well.originY
-          active: modelData.address !== "" && modelData.address === card.activeAddress
+          active: card.activeAddress !== "" && Logic.address(modelData.address) === card.activeAddress
         }
       }
     }

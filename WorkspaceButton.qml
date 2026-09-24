@@ -19,11 +19,9 @@ WidgetButton {
   readonly property string wsName: workspace ? workspace.name : ""
 
   readonly property bool focused: !special && host.focusedId === workspaceId
-  readonly property bool shown: special
-    ? host.isSpecialOpen(wsName)
-    : (workspace !== null && workspace.active && !focused)
-  readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
-  readonly property bool urgent: workspace !== null && workspace.urgent && !focused
+  readonly property bool shown: special ? host.isSpecialOpen(wsName) : (host.isActive(workspaceId) && !focused)
+  readonly property bool occupied: workspace !== null && workspace.windows > 0
+  readonly property bool urgent: !focused && host.isUrgent(workspaceId)
 
   readonly property string labelText: {
     var text = Logic.label(workspaceId, wsName, host.showNumbers, host.vertical)
