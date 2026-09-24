@@ -1,20 +1,46 @@
 {
   "schemaVersion": 1,
-  "id": "omarchy.workspaces",
-  "name": "Workspaces",
-  "version": "1.0.0",
-  "author": "Omarchy",
-  "description": "Workspace number indicators",
-  "kinds": [
-    "bar-widget"
-  ],
-  "entryPoints": {
-    "barWidget": "Workspaces.qml"
-  },
+  "id": "io.github.brandonpollack23.beautiful-workspace-bar",
+  "name": "Beautiful Workspace Bar",
+  "version": "0.1.0",
+  "author": "Brandon Pollack",
+  "license": "MIT",
+  "description": "Every Hyprland workspace by name, with a sliding accent pill, urgent highlights and live window previews.",
+  "homepage": "https://github.com/brandonpollack23/omarchy-beautiful-workspace-bar",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Workspaces.qml" },
+  "keywords": ["workspaces", "hyprland", "names", "preview", "pill"],
   "barWidget": {
-    "displayName": "Workspaces",
-    "description": "Workspace number indicators",
+    "displayName": "Beautiful Workspace Bar",
+    "description": "Named workspaces with a sliding pill and hover previews.",
     "category": "Compositor",
-    "allowMultiple": false
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "aliases": ["workspaces", "workspace bar"],
+    "defaults": { "showSpecial": true, "showNumbers": false, "previewMode": "capture" },
+    "schema": [
+      {
+        "key": "showSpecial",
+        "type": "boolean",
+        "label": "Special workspaces",
+        "description": "Show special workspaces (the scratchpad and the like) after a separator; clicking one toggles it.",
+        "defaultValue": true
+      },
+      {
+        "key": "showNumbers",
+        "type": "boolean",
+        "label": "Numbers with names",
+        "description": "Show a named workspace as \"1 Home\" instead of \"Home\".",
+        "defaultValue": false
+      },
+      {
+        "key": "previewMode",
+        "type": "string",
+        "label": "Hover preview",
+        "description": "capture: screenshots of the windows; icons: app icons only, no screen content; off.",
+        "defaultValue": "capture",
+        "options": ["capture", "icons", "off"]
+      }
+    ]
   }
 }
