@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Logic.js" as Logic
 
@@ -41,13 +42,13 @@ BarWidget {
   readonly property bool animate: root.setting("animate", true) !== false
 
   // Theme. The bar's own colors where the host passes them, else the palette.
-  readonly property color ink: root.bar ? root.bar.barForeground : Color.bar.text
-  readonly property color urgentColor: root.bar ? root.bar.urgent : Color.urgent
-  readonly property color accent: Color.accent
+  readonly property color ink: root.bar ? root.bar.barForeground : Commons.Color.bar.text
+  readonly property color urgentColor: root.bar ? root.bar.urgent : Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
   // Text on the pill: the theme's background, unless its foreground reads
   // better on the accent (light themes with a dark accent).
-  readonly property color onAccent: Logic.contrast(Color.accent, Color.foreground) > Logic.contrast(Color.accent, Color.background)
-    ? Color.foreground : Color.background
+  readonly property color onAccent: Logic.contrast(Commons.Color.accent, Commons.Color.foreground) > Logic.contrast(Commons.Color.accent, Commons.Color.background)
+    ? Commons.Color.foreground : Commons.Color.background
   readonly property string fontFamily: root.bar && root.bar.fontFamily !== "" ? root.bar.fontFamily : Style.font.family
 
   // The pill sits this far in from the bar's edges, and a button is never

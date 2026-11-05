@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 
 // One window in the preview, where Hyprland has it, scaled by `s`.
 //
@@ -31,9 +32,9 @@ Rectangle {
   width: Math.max(3, Math.round(win.width * s))
   height: Math.max(3, Math.round(win.height * s))
   radius: Math.min(Style.space(4), Style.cornerRadius)
-  color: showBlock ? Util.alpha(Color.popups.background, 0.85) : Color.popups.background
+  color: showBlock ? Util.alpha(Commons.Color.popups.background, 0.85) : Commons.Color.popups.background
   border.width: active ? 2 : 1
-  border.color: active ? Color.accent : Util.alpha(Color.popups.text, win.floating ? 0.5 : 0.25)
+  border.color: active ? Commons.Color.accent : Util.alpha(Commons.Color.popups.text, win.floating ? 0.5 : 0.25)
   clip: true
 
   Timer {
@@ -76,7 +77,7 @@ Rectangle {
       textFormat: Text.PlainText
       elide: Text.ElideRight
       text: tile.win.cls
-      color: Util.alpha(Color.popups.text, 0.75)
+      color: Util.alpha(Commons.Color.popups.text, 0.75)
       font.family: tile.host.fontFamily
       font.pixelSize: Style.font.caption
     }

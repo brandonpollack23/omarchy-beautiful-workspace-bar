@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Hyprland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Logic.js" as Logic
 
@@ -61,7 +62,7 @@ PopupCard {
         textFormat: Text.PlainText
         elide: Text.ElideRight
         text: Logic.title(card.host.shownId, card.host.previewWorkspace ? card.host.previewWorkspace.name : "")
-        color: Color.popups.text
+        color: Commons.Color.popups.text
         font.family: card.host.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -77,7 +78,7 @@ PopupCard {
           var words = n + (n === 1 ? " window" : " windows")
           return card.host.shownId === card.host.focusedId ? words + "  ·  here" : words
         }
-        color: Util.alpha(Color.popups.text, 0.6)
+        color: Util.alpha(Commons.Color.popups.text, 0.6)
         font.family: card.host.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -90,7 +91,7 @@ PopupCard {
       width: parent.width
       height: card.wellHeight
       radius: Style.cornerRadius
-      color: Util.alpha(Color.popups.text, 0.06)
+      color: Util.alpha(Commons.Color.popups.text, 0.06)
       clip: true
 
       readonly property real s: card.host.previewScreen && card.host.previewScreen.width > 0
@@ -103,7 +104,7 @@ PopupCard {
         // The path is a symlink that `omarchy theme set` and
         // `omarchy background` repoint, so reload it each time the card has
         // closed, ready for the next opening.
-        source: Util.fileUrl(Color.stateHome + "/omarchy/current/background") + "#" + card.wallpaperStamp
+        source: Util.fileUrl(Commons.Color.stateHome + "/omarchy/current/background") + "#" + card.wallpaperStamp
         fillMode: Image.PreserveAspectCrop
         sourceSize.width: Math.round(well.width * 2)
         asynchronous: true
@@ -114,7 +115,7 @@ PopupCard {
       // Dims the wallpaper so the windows stand out.
       Rectangle {
         anchors.fill: parent
-        color: Util.alpha(Color.popups.background, 0.35)
+        color: Util.alpha(Commons.Color.popups.background, 0.35)
       }
 
       Repeater {
